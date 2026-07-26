@@ -1,73 +1,128 @@
-# Hexy's Bot Manager, Website
+# Hexy's Bot Manager
 
-Live site: https://hexysbot.netlify.app/
+A desktop dashboard (Tkinter) for running and managing a Discord bot. Toggle
+features on and off, watch live logs, browse your server's channels and
+voice chats in real time, and moderate members, all from one window.
 
-This is the marketing and download site for Hexy's Bot Manager, a desktop
-dashboard for running and managing a Discord bot. It's a static site: plain
-HTML, CSS, and vanilla JavaScript, no build step and no framework required.
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
-## Pages
+## Features
 
-| Page | File | What it does |
-|---|---|---|
-| Home | `index.html` | Full-screen moon photo hero, animated title, and the Download button (with its launch animation) |
-| Photos | `photos.html` | A little animated solar system where each orbiting planet is a screenshot of the app. Hover a planet to preview it, click for the full photo |
-| Download Plugins | `plugins.html` | Coming soon page for a future plugin download hub |
-| Notes | `notes.html` | Full documentation: every feature explained, plus an honest breakdown of what data the app stores locally and where |
+- **Plugin system.** Toggle bot features on and off from the UI. Ships with:
+  - `/math`, an expression evaluator with unit conversions and constants
+  - `/weather`, live weather lookup for any city, with autocomplete
+  - An example plugin template so you can write your own
+- **Live dashboard.** Connection status, ping, uptime, and per-plugin PID/status
+- **Debug mode.** Pipe any plugin's stdout/stderr straight into the log,
+  with automatic error/warning highlighting
+- **Servers view.** See every server the bot is in, with icons and member counts
+- **Chat browser.** Expand every category and channel in a server. Open a
+  text channel to watch its live chat, or a voice channel to see who's
+  connected. Both update in real time, no refresh needed
+- **Moderation.** Click any username to Kick, Timeout, or Ban them
+  directly, with a duration picker for timeouts and temporary bans
+- **Persistent temp bans.** A temporary ban's exact expiry (full date and
+  time, not just a clock time) is saved to disk. If the app is closed and
+  reopened later, it still unbans at the right moment instead of getting
+  confused by day changes
+- **Send messages.** Post a staff message to any channel straight from the
+  chat viewer
+- **Lockdown mode.** A panic button that blocks all bot commands and
+  auto-deletes anything the bot tries to send
 
-## Folder structure
+## Requirements
+
+- Python 3.10 or newer
+- A Discord bot application, created at the
+  [Discord Developer Portal](https://discord.com/developers/applications)
+
+## Setup
+
+1. **Clone or download this repo.**
+
+2. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Create a Discord bot** at the
+   [Developer Portal](https://discord.com/developers/applications):
+   - New Application, then Bot, then Reset Token, and copy it somewhere safe
+   - Under Privileged Gateway Intents, enable:
+     - Server Members Intent
+     - Message Content Intent
+   - Under OAuth2, URL Generator, check `bot` and `applications.commands`,
+     then give it at minimum: Kick Members, Ban Members, Moderate Members,
+     Send Messages, Read Message History, View Channels, Connect
+   - Use the generated URL to invite the bot to your server
+
+4. **Run the app:**
+   ```bash
+   python hexys_bot_manager.py
+   ```
+   Paste your bot token into the connect screen. The app creates its own
+   `hexy_config.json`, `logs/`, `plugins/`, and `assets/` folders on first
+   launch, all git ignored so your token never gets committed.
+
+## Adding your own plugin
+
+Every plugin is a standalone Python script, launched as:
 
 ```
-hexys-site/
-├── index.html
-├── notes.html
-├── photos.html
-├── plugins.html
-├── assets/
-│   └── moon.webp              the hero background photo
-├── photos/
-│   ├── dashboard.png          planet photo #1
-│   ├── chat-viewer.png        planet photo #2
-│   ├── moderation.png         planet photo #3
-│   ├── servers.png            planet photo #4
-│   ├── debug-mode.png         planet photo #5
-│   └── download-page.png      planet photo #6
-└── downloads/
-    └── hexys-bot-manager.zip  the actual app download
+python your_plugin.py --token BOT_TOKEN --state on|off
 ```
 
-## Updating things
+1. Copy `example_plugin.py` as a starting point.
+2. Write your feature logic in `run_feature()`.
+3. Register it in `hexys_bot_manager.py` by adding an entry to the
+   `FEATURES` list near the top of the file:
 
-**Swap in real screenshots.** The six files in `photos/` are placeholders.
-Replace them with your own screenshots using the exact same filenames and
-the Photos page picks them up automatically, no code changes needed.
+   ```python
+   {
+       "name":        "My Feature",
+       "description": "What it does.",
+       "script":      "my_plugin.py",
+       "builtin":     False,
+   },
+   ```
+4. Restart the manager. A new toggle card appears automatically.
 
-**Ship a new build of the app.** Replace
-`downloads/hexys-bot-manager.zip` with the updated zip, keeping that same
-filename. The Download button on the home page always points at that path.
+## A note on temporary bans
 
-**Change any of the copy.** Every page is a single self-contained HTML
-file with its CSS and JavaScript inline, so there's nothing else to hunt
-down. Open the page, find the text, edit it.
+Discord itself doesn't support temporary bans natively, unlike timeouts,
+which Discord's own servers expire automatically even if this app isn't
+running. A temp ban set through this manager only auto-expires while the
+manager process is running. If you close it before the ban is due to lift,
+the ban stays in place until you reopen the app, at which point it picks
+the countdown back up from the real stored expiry time, or until you unban
+the person manually.
 
-## Running it locally
+## Data and privacy
 
-No install needed. From this folder:
+Everything the app stores lives in plain files right next to the script,
+on your own machine, and nowhere else:
 
-```bash
-python3 -m http.server 8000
-```
+| File | What it holds |
+|---|---|
+| `hexy_config.json` | Your bot token and the last launch time |
+| `mod_schedule.json` | Pending temporary ban records and when they expire |
+| `math_state.json`, `weather_state.json` | Whether each plugin was left on or off |
+| `*.log` | A running text history of what each plugin printed |
+| `*.pid` | A process ID number, used to stop a plugin from starting twice |
 
-Then open `http://localhost:8000` in a browser.
+Your bot token is only ever sent to Discord's own servers, since that's
+simply what logging a bot in requires. The Weather plugin also calls
+Open-Meteo's free geocoding and forecast API when someone uses `/weather`,
+sending only the city text typed in and the coordinates that come back. No
+API key or account is involved. Nothing else leaves your machine: no
+analytics, no telemetry, and nothing reporting back to whoever wrote this
+app.
 
-## Deploying
+Treat your bot token like a password. If it's ever exposed, regenerate it
+right away from the Discord Developer Portal.
 
-This repo is already set up to deploy as-is on Netlify, GitHub Pages, or
-any other static host, since there's no build step. Point the host at the
-root of this folder and it works.
+## License
 
-## Notes on the placeholder content
-
-The six images in `photos/` were generated as stand-ins so the Photos page
-launches fully populated instead of empty. Replace them with real
-screenshots whenever you're ready.
+MIT, see [LICENSE](LICENSE). Feel free to swap this out if you'd rather
+use a different license for your fork.
